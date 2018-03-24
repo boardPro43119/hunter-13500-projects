@@ -18,10 +18,10 @@ using namespace std;
 // Prototypes
 string getPronunciation(string word);
 string searchForSimilar(string inputWord, string inputPronunciation);
-bool pronunciationsIdentical(string pronunciation1, string pronunciation2);
-bool pronunciationsAddedPhoneme(string pronunciation1, string pronunciation2);
-bool pronunciationsRemovedPhoneme(string pronunciation1, string pronunciation2);
-bool pronunciationsReplacedPhoneme(string pronunciation1, string pronunciation2);
+bool phonemesIdentical(string pronunciation1, string pronunciation2);
+bool phonemeAdded(string pronunciation1, string pronunciation2);
+bool phonemeRemoved(string pronunciation1, string pronunciation2);
+bool phonemeReplaced(string pronunciation1, string pronunciation2);
 int numPhonemes(string pronunciation);
 string toUpperCase(string str);
 bool validWord(string word);
@@ -75,6 +75,12 @@ string getPronunciation(string word){
 		exit(1);
 	}
 
+	// If user inputs an invalid word (containing non-alphabetic characters other
+	// than apostrophes), abort search early
+	if(!validWord(word)){
+		return "Not found";
+	}
+
 	// Search dictionary file for word
 	while(getline(inputStream, currentLine)){
 
@@ -82,7 +88,7 @@ string getPronunciation(string word){
 		splitOnSpace(currentLine, currentWord, currentPronunciation);
 
 		// If valid word is found, return its pronunciation and end function
-		if((toUpperCase(word)==currentWord) && validWord(currentWord)){
+		if(toUpperCase(word)==currentWord){
 			return currentPronunciation;
 		}
 	}
@@ -125,16 +131,16 @@ string searchForSimilar(string inputWord, string inputPronunciation){
 		// Check each valid word in dictionary for each kind of similarity (identical pronunciation,
 		// one added phoneme, one removed phoneme, or one replaced phoneme) and add current word to corresponding list
 		if(validWord(currentWord)){
-			if(pronunciationsIdentical(inputPronunciation, currentPronunciation) && (toUpperCase(inputWord) != currentWord)){
+			if(phonemesIdentical(inputPronunciation, currentPronunciation) && (toUpperCase(inputWord) != currentWord)){
 				identicalMatches += (currentWord + " ");
 			}
-			else if(pronunciationsAddedPhoneme(inputPronunciation, currentPronunciation)){
+			else if(phonemeAdded(inputPronunciation, currentPronunciation)){
 				addMatches += (currentWord + " ");
 			}
-			else if(pronunciationsRemovedPhoneme(inputPronunciation, currentPronunciation)){
+			else if(phonemeRemoved(inputPronunciation, currentPronunciation)){
 				removeMatches += (currentWord + " ");
 			}
-			else if(pronunciationsReplacedPhoneme(inputPronunciation, currentPronunciation)){
+			else if(phonemeReplaced(inputPronunciation, currentPronunciation)){
 				replaceMatches += (currentWord + " ");
 			}
 		}
@@ -152,7 +158,7 @@ string searchForSimilar(string inputWord, string inputPronunciation){
 }
 
 // Returns true if the two passed-in pronuncations are identical; false otherwise.
-bool pronunciationsIdentical(string pronunciation1, string pronunciation2){
+bool phonemesIdentical(string pronunciation1, string pronunciation2){
 	if(pronunciation1 == pronunciation2){
 		return true;
 	}
@@ -161,7 +167,7 @@ bool pronunciationsIdentical(string pronunciation1, string pronunciation2){
 
 // Returns true if the second passed-in pronunciation is the result of adding one phoneme
 // to the first; false otherwise.
-bool pronunciationsAddedPhoneme(string pronunciation1, string pronunciation2){
+bool phonemeAdded(string pronunciation1, string pronunciation2){
 	// Variables to store last extracted phoneme from pronunciation1 and pronunciation2
 	string currentPhoneme1, currentPhoneme2;
 	// Variables to store remainder of pronunciation1 and pronunciation2 after extracting a phoneme
@@ -176,7 +182,7 @@ bool pronunciationsAddedPhoneme(string pronunciation1, string pronunciation2){
 	splitOnSpace(pronunciation1, currentPhoneme1, remainingPronunciation1);
 	splitOnSpace(pronunciation2, currentPhoneme2, remainingPronunciation2);
 
-	// While corresponding phonemes are identical, continue extracting
+	// Continue extracting until a pair of different phonemes is found
 	while(currentPhoneme1 == currentPhoneme2){
 		splitOnSpace(remainingPronunciation1, currentPhoneme1, remainingPronunciation1);
 		splitOnSpace(remainingPronunciation2, currentPhoneme2, remainingPronunciation2);
@@ -209,7 +215,7 @@ bool pronunciationsAddedPhoneme(string pronunciation1, string pronunciation2){
 
 // Returns true if the second passed-in pronunciation is the result of removing one phoneme
 // from the first; false otherwise.
-bool pronunciationsRemovedPhoneme(string pronunciation1, string pronunciation2){
+bool phonemeRemoved(string pronunciation1, string pronunciation2){
 	// Variables to store last extracted phoneme from pronunciation1 and pronunciation2
 	string currentPhoneme1, currentPhoneme2;
 	// Variables to store remainder of pronunciation1 and pronunciation2 after extracting a phoneme
@@ -224,7 +230,7 @@ bool pronunciationsRemovedPhoneme(string pronunciation1, string pronunciation2){
 	splitOnSpace(pronunciation1, currentPhoneme1, remainingPronunciation1);
 	splitOnSpace(pronunciation2, currentPhoneme2, remainingPronunciation2);
 
-	// While corresponding phonemes are identical, continue extracting
+	// Continue extracting until a pair of different phonemes is found
 	while(currentPhoneme1 == currentPhoneme2){
 		splitOnSpace(remainingPronunciation1, currentPhoneme1, remainingPronunciation1);
 		splitOnSpace(remainingPronunciation2, currentPhoneme2, remainingPronunciation2);
@@ -256,7 +262,7 @@ bool pronunciationsRemovedPhoneme(string pronunciation1, string pronunciation2){
 
 // Returns true if the second passed-in pronunciation is the result of replacing one phoneme
 // in the first; false otherwise.
-bool pronunciationsReplacedPhoneme(string pronunciation1, string pronunciation2){
+bool phonemeReplaced(string pronunciation1, string pronunciation2){
 	// Variables to store last extracted phoneme from pronunciation1 and pronunciation2
 	string currentPhoneme1, currentPhoneme2;
 	// Variables to store remainder of pronunciation1 and pronunciation2 after extracting a phoneme
@@ -266,7 +272,7 @@ bool pronunciationsReplacedPhoneme(string pronunciation1, string pronunciation2)
 
 	// If pronunciation1 and pronunciation2 do not have the same number of phonemes, or if
 	// they are identical, return false
-	if((numPhonemes(pronunciation2) != numPhonemes(pronunciation1)) || pronunciationsIdentical(pronunciation1, pronunciation2)){
+	if((numPhonemes(pronunciation2) != numPhonemes(pronunciation1)) || phonemesIdentical(pronunciation1, pronunciation2)){
 		return false;
 	}
 
@@ -276,7 +282,7 @@ bool pronunciationsReplacedPhoneme(string pronunciation1, string pronunciation2)
 
 	// Extract and compare remaining phonemes
 	for(int i=0; i<numPhonemes(pronunciation1)+1; i++){
-		// Upon encountering our first phoneme difference, set differenceFound to true.  If we find
+		// Upon encountering our first pair of different phonemes, set differenceFound to true.  If we find
 		// another difference after the first, return false
 		if(currentPhoneme1 != currentPhoneme2){
 			if(differenceFound){
