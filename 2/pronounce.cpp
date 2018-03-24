@@ -216,48 +216,8 @@ bool phonemeAdded(string pronunciation1, string pronunciation2){
 // Returns true if the second passed-in pronunciation is the result of removing one phoneme
 // from the first; false otherwise.
 bool phonemeRemoved(string pronunciation1, string pronunciation2){
-	// Variables to store last extracted phoneme from pronunciation1 and pronunciation2
-	string currentPhoneme1, currentPhoneme2;
-	// Variables to store remainder of pronunciation1 and pronunciation2 after extracting a phoneme
-	string remainingPronunciation1, remainingPronunciation2;
-
-	// If pronunciation2 does not have one less phoneme than pronunciation1, return false
-	if(numPhonemes(pronunciation2) != numPhonemes(pronunciation1) - 1){
-		return false;
-	}
-
-	// Extract first phoneme of both pronunciations
-	splitOnSpace(pronunciation1, currentPhoneme1, remainingPronunciation1);
-	splitOnSpace(pronunciation2, currentPhoneme2, remainingPronunciation2);
-
-	// Continue extracting until a pair of different phonemes is found
-	while(currentPhoneme1 == currentPhoneme2){
-		splitOnSpace(remainingPronunciation1, currentPhoneme1, remainingPronunciation1);
-		splitOnSpace(remainingPronunciation2, currentPhoneme2, remainingPronunciation2);
-	}
-
-	// If we don't find a difference before reaching the end of pronunciation2, currentPhoneme2
-	// will be empty when exiting the while loop above.  In this case, pronunciation2 is the result of
-	// removing the last phoneme from pronunciation1; return true
-	if(currentPhoneme2.empty()){
-		return true;
-	}
-
-	// If we find a difference before reaching the end of pronunciation2, extract the next
-	// phoneme from pronunciation2, which should be identical to the following phoneme in pronunciation1
-	splitOnSpace(remainingPronunciation1, currentPhoneme1, remainingPronunciation1);
-
-	// Now check if each remaining phoneme in pronunciation2 is identical to the following phoneme
-	// in pronunciation1.  If this holds true, return true; otherwise return false
-	while(!(currentPhoneme1.empty() && currentPhoneme2.empty())){
-		if(currentPhoneme1 != currentPhoneme2){
-			return false;
-		}
-		splitOnSpace(remainingPronunciation1, currentPhoneme1, remainingPronunciation1);
-		splitOnSpace(remainingPronunciation2, currentPhoneme2, remainingPronunciation2);
-		
-	}
-	return true;
+	// Same as checking if pronunciation1 adds one phoneme to pronunciation2
+	return phonemeAdded(pronunciation2, pronunciation1);
 }
 
 // Returns true if the second passed-in pronunciation is the result of replacing one phoneme
@@ -280,7 +240,7 @@ bool phonemeReplaced(string pronunciation1, string pronunciation2){
 	splitOnSpace(pronunciation1, currentPhoneme1, remainingPronunciation1);
 	splitOnSpace(pronunciation2, currentPhoneme2, remainingPronunciation2);
 
-	// Extract and compare remaining phonemes
+	// Extract and compare corresponding phonemes
 	for(int i=0; i<numPhonemes(pronunciation1)+1; i++){
 		// Upon encountering our first pair of different phonemes, set differenceFound to true.  If we find
 		// another difference after the first, return false
@@ -304,7 +264,7 @@ bool phonemeReplaced(string pronunciation1, string pronunciation2){
 
 // Returns the number of phonemes in the passed-in pronunciation.
 int numPhonemes(string pronunciation){
-	int phonemes = 0;
+	int phonemes = 1;
 	for(int i=0; i<pronunciation.length(); i++){
 		if(isspace(pronunciation[i])){
 			phonemes++;
@@ -346,24 +306,29 @@ bool validWord(string word){
 	return true;
 }
 
-
+// Splits a string s into two strings on the first instance of a space,
+// and trims leading spaces from the second string.
 void splitOnSpace(string s, string & before, string & after) {
 	// reset strings
 	before = ""; 
 	after = "";
 
-	// accumulate before space
+	// accumulate before first space
 	int i = 0;
-	while(i < s.size() && not isspace(s[i])){
-		before += s[i]; i++;
+	while(i < s.size() && !isspace(s[i])){
+		before += s[i];
+		i++;
 	}
 
-	// skip the space
-	i++;
+	// skip spaces
+	while(i < s.size() && isspace(s[i])){
+		i++;
+	}
 
 	// accumulate after space
 	while (i < s.size()){
-		after += s[i]; i++;
+		after += s[i];
+		i++;
 	}
 
 }
