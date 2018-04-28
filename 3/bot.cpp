@@ -52,153 +52,102 @@ void indexInRange(int index, int arraySize, ostream &log){
 	}
 }
 
+bool cellOpen(int row, int col){
+	if(((row<0) || (row>=ROWS)) || ((col<0) || (col>=COLS))){
+		return false;
+	}
+
+	for(int i=0; i<NUM; i++){
+		if((robotRows[i]==row) && (robotCols[i]==col)){
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /* Have robot with given id move towards the passed-in cell */
 Action moveTowardsCell(int robotID, int cellRow, int cellCol, ostream &log){
 	indexInRange(robotID, NUM, log); // debugging
 	int row = robotRows[robotID];
 	int col = robotCols[robotID];
 
-	// if the robot is already in the debris' column or the debris is further away in the vertical direction
-	// than in the horizontal direction
-	if(cellCol-col==0 || ((abs(cellRow-row) >= abs(cellCol-col)) && (cellRow-row != 0))){
-		// move down if the difference between cellCol and col is positive, up if it is negative
-		if(cellRow-row>0){
-			// if the cell the robot is trying to move to is already occupied, move in the horizontal direction instead
-			for(int i=0; i<NUM; i++){
-				indexInRange(i, NUM, log); // debugging
-				if(i!=robotID && ((robotRows[i]==row+1) && (robotCols[i]==col))){
-					log << "Bot " << robotID << ": (" << row+1 << ", " << col << ") is already occupied by bot " << i << endl;
-					// Move right if the target cell is closer in that direction, unless we are at the right boundary of the grid
-					if(robotCols[i]==0 || ((cellCol-col>0) && (robotCols[i]!=COLS-1))){
-						robotCols[robotID]++;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return RIGHT;
-					}
-					// Otherwise move left, unless we are at the left boundary of the grid (the condition in the above if statement takes care of this)
-					else{
-						robotCols[robotID]--;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return LEFT;
-					}
-				}
-			}
-			robotRows[robotID]++;
-			log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-			if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-				log << "Bot " << robotID << " is about to collect debris\n";
-			}
-			return DOWN;
-		}
-		else{
-			// if the cell the robot is trying to move to is already occupied, move in the horizontal direction instead
-			for(int i=0; i<NUM; i++){
-				indexInRange(i, NUM, log); // debugging
-				if(i!=robotID && ((robotRows[i]==row-1) && (robotCols[i]==col))){
-					log << "Bot " << robotID << ": (" << row-1 << ", " << col << ") is already occupied by bot " << i << endl;
-					// Move right if the target cell is closer in that direction, unless we are at the right boundary of the grid
-					if(robotCols[i]==0 || ((cellCol-col>0) && (robotCols[i]!=COLS-1))){
-						robotCols[robotID]++;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return RIGHT;
-					}
-					// Otherwise move left, unless we are at the left boundary of the grid (the condition in the above if statement takes care of this)
-					else{
-						robotCols[robotID]--;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return LEFT;
-					}
-				}
-			}
-			robotRows[robotID]--;
-			log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-			if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-				log << "Bot " << robotID << " is about to collect debris\n";
-			}
-			return UP;
+	// determine if it's possible to move in each of the four directions
+	bool canMoveLeft = cellOpen(row, col-1);
+	bool canMoveRight = cellOpen(row, col+1);
+	bool canMoveUp = cellOpen(row-1, col);
+	bool canMoveDown = cellOpen(row+1, col);
+
+	// determine the robot's distance from the target after moving in each direction
+	int leftDistance = abs(cellRow-row) + abs(cellCol-(col-1));
+	int rightDistance = abs(cellRow-row) + abs(cellCol-(col+1));
+	int upDistance = abs(cellRow-(row-1)) + abs(cellCol-col);
+	int downDistance = abs(cellRow-(row+1)) + abs(cellCol-col);
+
+	int distanceAfterMoving[4] = {leftDistance, rightDistance, upDistance, downDistance};
+
+	// the closest this robot could be to the target after moving
+	int minDistanceAfterMoving = INT_MAX;
+
+	for(int i=0; i<4; i++){
+		if(distanceAfterMoving[i]<minDistanceAfterMoving){
+			minDistanceAfterMoving = distanceAfterMoving[i];
 		}
 	}
-	// otherwise, move horizontally
-	else{
-		// move right if the difference between cellCol and col is positive, left if it is negative
-		if(cellCol-col>0){
-			// if the cell the robot is trying to move to is already occupied, move in the vertical direction instead
-			for(int i=0; i<NUM; i++){
-				indexInRange(i, NUM, log); // debugging
-				if(i!=robotID && ((robotRows[i]==row) && (robotCols[i]==col+1))){
-					log << "Bot " << robotID << ": (" << row << ", " << col+1 << ") is already occupied by bot " << i << endl;
-					// Move down if the target cell is closer in that direction, unless we are at the lower boundary of the grid
-					if(robotRows[i]==0 || ((cellRow-row>0) && (robotRows[i]!=ROWS-1))){
-						robotRows[robotID]++;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return DOWN;
+
+	// Attempt to move in a direction that would get the robot closer to its target
+	for(int i=0; i<4; i++){
+		if(distanceAfterMoving[i]==minDistanceAfterMoving){
+			switch(i){
+				case 0:
+					if(canMoveLeft){
+						log << "Bot " << robotID << ": Moving left\n";
+						return LEFT;
 					}
-					// Otherwise move up, unless we are at the upper boundary of the grid (the condition in the above if statement takes care of this)
-					else{
-						robotRows[robotID]--;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
+					log << "Bot " << robotID << ": Can't move left\n";
+					break;
+				case 1:
+					if(canMoveRight){
+						log << "Bot " << robotID << ": Moving right\n";
+						return RIGHT;
+					}
+					log << "Bot " << robotID << ": Can't move right\n";
+					break;
+				case 2:
+					if(canMoveUp){
+						log << "Bot " << robotID << ": Moving up\n";
 						return UP;
 					}
-				}
-			}
-			robotCols[robotID]++;
-			log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-			if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-				log << "Bot " << robotID << " is about to collect debris\n";
-			}
-			return RIGHT;
-		}
-		else{
-			// if the cell the robot is trying to move to is already occupied, move in the vertical direction instead
-			for(int i=0; i<NUM; i++){
-				indexInRange(i, NUM, log); // debugging
-				if(i!=robotID && ((robotRows[i]==row) && (robotCols[i]==col-1))){
-					log << "Bot " << robotID << ": (" << row << ", " << col-1 << ") is already occupied by bot " << i << endl;
-					// Move down if the target cell is closer in that direction, unless we are at the lower boundary of the grid
-					if(robotRows[i]==0 || ((cellRow-row>0) && (robotRows[i]!=ROWS-1))){
-						robotRows[robotID]++;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
+					log << "Bot " << robotID << ": Can't move up\n";
+					break;
+				default:
+					if(canMoveDown){
+						log << "Bot " << robotID << ": Moving down\n";
 						return DOWN;
 					}
-					// Otherwise move up, unless we are at the upper boundary of the grid (the condition in the above if statement takes care of this)
-					else{
-						robotRows[robotID]--;
-						log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-						if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-							log << "Bot " << robotID << " is about to collect debris\n";
-						}
-						return UP;
-					}
-				}
+					log << "Bot " << robotID << ": Can't move down\n";
+					break;
 			}
-			robotCols[robotID]--;
-			log << "Bot " << robotID << ": Moving to (" << robotRows[robotID] << ", " << robotCols[robotID] << ")\n";
-			if((robotRows[robotID] == targetRows[robotID]) && (robotCols[robotID] == targetCols[robotID])){
-				log << "Bot " << robotID << " is about to collect debris\n";
-			}
-			return LEFT;
 		}
 	}
+
+	log << "Bot " << robotID << ": Can't get closer to target, moving randomly\n";
+
+	// If we cannot get closer to the target, move randomly in one of the other directions
+	if(canMoveLeft){
+		return LEFT;
+	}
+	else if(canMoveRight){
+		return RIGHT;
+	}
+	else if(canMoveUp){
+		return UP;
+	}
+	else {
+		return DOWN;
+	}
+	
+
 }
 
 /* Returns the ID of the robot targeting a debris field at the given coordinates (other than the one with the given ID). */
