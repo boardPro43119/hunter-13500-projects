@@ -142,7 +142,11 @@ Action moveTowardsCell(int robotID, int cellRow, int cellCol, ostream &log){
 
 	log << "Bot " << robotID << ": Can't get closer to target, moving randomly\n";
 
-	// If we cannot get closer to the target, move randomly in one of the other directions
+	// If we cannot get closer to the target, move randomly in one of the other directions and clear the target
+
+	targetRows[robotID] = -1;
+	targetCols[robotID] = -1;
+
 	if(canMoveLeft){
 		robotCols[robotID]--;
 		return LEFT;
