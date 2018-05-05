@@ -38,14 +38,22 @@ bool repairing[50];
 
 //The indices of the arrays correspond to the id numbers of the robots.
 
+// Prototypes
+void onStart(int num, int rows, int cols, double mpr, Area &area, ostream &log);
+Action onRobotAction(int id, Loc loc, Area &area, ostream &log);
+Action moveTowardsTarget(int robotID);
+bool cellOpen(int row, int col);
+int otherRobotTargetingDebris(int robotID, int debrisRow, int debrisCol);
+void onRobotMalfunction(int id, Loc loc, Area &area, ostream &log);
+void onClockTick(int time, ostream &log);
+
 /* Initialization procedure, called when the game starts: */
-void onStart(int num, int rows, int cols, double mpr,
-             Area &area, ostream &log)
-{
+void onStart(int num, int rows, int cols, double mpr, Area &area, ostream &log){
 	NUM = num;   // save the number of robots and the map dimensions
 	ROWS = rows;
 	COLS = cols;
 
+	// initialize global arrays
 	for(int i=0; i<50; i++){
 		robotRows[i] = -1;
 		robotCols[i] = -1;
@@ -58,132 +66,13 @@ void onStart(int num, int rows, int cols, double mpr,
 	log << "Start" << endl;
 }
 
-bool cellOpen(int row, int col){
-	if(((row<0) || (row>=ROWS)) || ((col<0) || (col>=COLS))){
-		return false;
-	}
-
-	for(int i=0; i<NUM; i++){
-		if((robotRows[i]==row) && (robotCols[i]==col)){
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/* Have robot with given id move towards the passed-in cell */
-Action moveTowardsCell(int robotID, int cellRow, int cellCol, ostream &log){
-	int row = robotRows[robotID];
-	int col = robotCols[robotID];
-
-	// determine if it's possible to move in each of the four directions
-	bool canMoveLeft = cellOpen(row, col-1);
-	bool canMoveRight = cellOpen(row, col+1);
-	bool canMoveUp = cellOpen(row-1, col);
-	bool canMoveDown = cellOpen(row+1, col);
-
-	// determine the robot's distance from the target after moving in each direction
-	int leftDistance = abs(cellRow-row) + abs(cellCol-(col-1));
-	int rightDistance = abs(cellRow-row) + abs(cellCol-(col+1));
-	int upDistance = abs(cellRow-(row-1)) + abs(cellCol-col);
-	int downDistance = abs(cellRow-(row+1)) + abs(cellCol-col);
-
-	int distanceAfterMoving[4] = {leftDistance, rightDistance, upDistance, downDistance};
-
-	// the closest this robot could be to the target after moving
-	int minDistanceAfterMoving = INT_MAX;
-
-	for(int i=0; i<4; i++){
-		if(distanceAfterMoving[i]<minDistanceAfterMoving){
-			minDistanceAfterMoving = distanceAfterMoving[i];
-		}
-	}
-
-	// Attempt to move in a direction that would get the robot closer to its target
-	for(int i=0; i<4; i++){
-		if(distanceAfterMoving[i]==minDistanceAfterMoving){
-			switch(i){
-				case 0:
-					if(canMoveLeft){
-						log << "Bot " << robotID << ": Moving left\n";
-						robotCols[robotID]--;	
-						return LEFT;
-					}
-					log << "Bot " << robotID << ": Can't move left\n";
-					break;
-				case 1:
-					if(canMoveRight){
-						log << "Bot " << robotID << ": Moving right\n";
-						robotCols[robotID]++;	
-						return RIGHT;
-					}
-					log << "Bot " << robotID << ": Can't move right\n";
-					break;
-				case 2:
-					if(canMoveUp){
-						log << "Bot " << robotID << ": Moving up\n";
-						robotRows[robotID]--;	
-						return UP;
-					}
-					log << "Bot " << robotID << ": Can't move up\n";
-					break;
-				default:
-					if(canMoveDown){
-						log << "Bot " << robotID << ": Moving down\n";
-						robotRows[robotID]++;	
-						return DOWN;
-					}
-					log << "Bot " << robotID << ": Can't move down\n";
-					break;
-			}
-		}
-	}
-
-	log << "Bot " << robotID << ": Can't get closer to target, moving randomly\n";
-
-	// If we cannot get closer to the target, move randomly in one of the other directions and clear the target
-
-	targetRows[robotID] = -1;
-	targetCols[robotID] = -1;
-
-	if(canMoveLeft){
-		robotCols[robotID]--;
-		return LEFT;
-	}
-	else if(canMoveRight){
-		robotCols[robotID]++;
-		return RIGHT;
-	}
-	else if(canMoveUp){
-		robotRows[robotID]--;
-		return UP;
-	}
-	else {
-		robotRows[robotID]++;
-		return DOWN;
-	}
-	
-
-}
-
-/* Returns the ID of the robot targeting a debris field at the given coordinates (other than the one with the given ID). */
-int otherRobotTargetingDebris(int robotID, int debrisRow, int debrisCol, ostream &log){
-	for(int i=0; i<NUM; i++){
-		if(i!=robotID && ((targetRows[i] == debrisRow) && (targetCols[i] == debrisCol))){
-			log << "Bot " << robotID << ": (" << debrisRow << ", " << debrisCol << ") is already being targeted by bot " << i << endl;
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-
 /* Deciding robot's next move */
 Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 	int row = loc.r; // current row and column
 	int col = loc.c;
+
+	int targetRow = targetRows[id];
+	int targetCol = targetCols[id];
 
 	// initialize coordinates of each robot into the global coordinates arrays, so all robots know
 	// where others are (necessary for each robot's first action)
@@ -193,7 +82,7 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 	// if the robot is in a debris field, collect it and clear this robot's target variables, unless
 	// this robot has been sent on a repair mission.  This reduces the chance that a robot assigned to
 	// repair a certain robot will malfunction on the way to repairing, which could create chaos.
-	if ((area.inspect(robotRows[id], robotCols[id]) == DEBRIS) && !repairing[id]){
+	if ((area.inspect(row, col) == DEBRIS) && !repairing[id]){
 
 		// if this robot has been sent to repair, it will continue towards the malfunctioned
 		// robot after it collects  This allows it to collect debris on its way to repairing.
@@ -201,8 +90,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 			targetRows[id] = -1;
 			targetCols[id] = -1;
 		}
-
-		log << "Bot " << id << ": Collected debris\n";
 
 		return COLLECT;
 
@@ -225,8 +112,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 
 						targetRows[i] = robotRows[i];
 						targetCols[i] = robotCols[i];
-
-						log << "Bot " << i << " has been repaired.  It is now targeting debris at (" << targetRows[i] << ", " << targetCols[i] << ")\n";
 						return REPAIR_DOWN;
 					}
 					else if((row-1==robotRows[i]) && (col==robotCols[i])){
@@ -238,8 +123,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 
 						targetRows[i] = robotRows[i];
 						targetCols[i] = robotCols[i];
-
-						log << "Bot " << i << " has been repaired.  It is now targeting debris at (" << targetRows[i] << ", " << targetCols[i] << ")\n";
 						return REPAIR_UP;
 					}
 					else if((row==robotRows[i]) && (col+1==robotCols[i])){
@@ -251,8 +134,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 
 						targetRows[i] = robotRows[i];
 						targetCols[i] = robotCols[i];
-
-						log << "Bot " << i << " has been repaired.  It is now targeting debris at (" << targetRows[i] << ", " << targetCols[i] << ")\n";
 						return REPAIR_RIGHT;
 					}
 					else if((row==robotRows[i]) && (col-1==robotCols[i])){
@@ -264,8 +145,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 
 						targetRows[i] = robotRows[i];
 						targetCols[i] = robotCols[i];
-
-						log << "Bot " << i << " has been repaired.  It is now targeting debris at (" << targetRows[i] << ", " << targetCols[i] << ")\n";
 						return REPAIR_LEFT;
 					}
 				}
@@ -274,9 +153,7 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 
 
 		// if this robot just collected or repaired, have this robot target a new debris field
-		if(targetRows[id] == -1){
-
-			log << "Bot " << id << ": Searching for debris\n";
+		if(targetRow == -1){
 
 			// when searching for nearby debris, the robot looks for debris this number of moves away
 			int movesAway = 1;
@@ -294,18 +171,17 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 					
 					// if the robot finds debris, check to see if it is closer to other robots targeting the same debris
 					if((area.inspect(currentRow, col+(movesAway-rowsFromBot)) == DEBRIS)){
-						log << "Bot " << id << ": Found debris at (" << currentRow << ", " << col+(movesAway-rowsFromBot) << ")\n";
 
-						int otherRobotID = otherRobotTargetingDebris(id, currentRow, col+(movesAway-rowsFromBot), log);
+						// find the index of the robot (if any) that is also targeting this debris
+						int otherRobotID = otherRobotTargetingDebris(id, currentRow, col+(movesAway-rowsFromBot));
 
+						// if there is none, this robot will target the debris
 						if(otherRobotID==-1){
-							log << "No other bots are targeting this debris\n";
 
 							targetRows[id] = currentRow;
 							targetCols[id] = col+(movesAway-rowsFromBot);
 
-							log << "Bot " << id << ": Targeting (" << targetRows[id] << ", " << targetCols[id] << ")\n";
-							return moveTowardsCell(id, targetRows[id], targetCols[id], log);
+							return moveTowardsTarget(id);
 						}
 
 						// otherwise, determine if this robot is closer than the other
@@ -313,7 +189,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 							// if this other robot is further away from the debris than this robot, this robot will take over the other's duty.
 							// if the other robot is equidistant from or closer to the debris, this robot will ignore it
 							if(abs(robotRows[otherRobotID]-currentRow)+abs(robotCols[otherRobotID]-(col+(movesAway-rowsFromBot)))>movesAway){
-								log << "Bot " << otherRobotID << ": No longer targeting (" << targetRows[otherRobotID] << ", " << targetCols[otherRobotID] << ")\n";
 								
 								targetRows[id] = currentRow;
 								targetCols[id] = col+(movesAway-rowsFromBot);
@@ -321,8 +196,7 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 								targetRows[otherRobotID] = -1;
 								targetCols[otherRobotID] = -1;
 
-								log << "Bot " << id << ": Targeting (" << targetRows[id] << ", " << targetCols[id] << ")\n";
-								return moveTowardsCell(id, targetRows[id], targetCols[id], log);
+								return moveTowardsTarget(id);
 
 							}
 
@@ -331,17 +205,16 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 					}
 
 					else if((area.inspect(currentRow, col-(movesAway-rowsFromBot)) == DEBRIS)){
-						log << "Bot " << id << ": Found debris at (" << currentRow << ", " << col-(movesAway-rowsFromBot) << ")\n";
 
 						// find the index of the robot (if any) that is also targeting this debris
-						int otherRobotID = otherRobotTargetingDebris(id, currentRow, col-(movesAway-rowsFromBot), log);
+						int otherRobotID = otherRobotTargetingDebris(id, currentRow, col-(movesAway-rowsFromBot));
 
+						// if there is none, this robot will target the debris
 						if(otherRobotID==-1){
 							targetRows[id] = currentRow;
 							targetCols[id] = col-(movesAway-rowsFromBot);
 
-							log << "Bot " << id << ": Targeting (" << targetRows[id] << ", " << targetCols[id] << ")\n";
-							return moveTowardsCell(id, targetRows[id], targetCols[id], log);
+							return moveTowardsTarget(id);
 						}
 
 						// otherwise, determine if this robot is closer than the other
@@ -349,7 +222,6 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 							// if this other robot is further away from the debris than this robot, this robot will take over the other's duty.
 							// if the other robot is equidistant from or closer to the debris, this robot will ignore the debris
 							if(abs(robotRows[otherRobotID]-currentRow)+abs(robotCols[otherRobotID]-(col-(movesAway-rowsFromBot)))>movesAway){
-								log << "Bot " << otherRobotID << ": No longer targeting (" << targetRows[otherRobotID] << ", " << targetCols[otherRobotID] << ")\n";
 								
 								targetRows[id] = currentRow;
 								targetCols[id] = col-(movesAway-rowsFromBot);
@@ -357,8 +229,7 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 								targetRows[otherRobotID] = -1;
 								targetCols[otherRobotID] = -1;
 
-								log << "Bot " << id << ": Targeting (" << targetRows[id] << ", " << targetCols[id] << ")\n";
-								return moveTowardsCell(id, targetRows[id], targetCols[id], log);
+								return moveTowardsTarget(id);
 
 							}
 
@@ -387,10 +258,208 @@ Action onRobotAction(int id, Loc loc, Area &area, ostream &log) {
 		}
 
 		// if the robot already has a target, move towards it
-		return moveTowardsCell(id, targetRows[id], targetCols[id], log);
+		return moveTowardsTarget(id);
 		
 	}
 }
+
+/* Moves the robot with given id towards its target */
+Action moveTowardsTarget(int robotID){
+	// robot's current row and column
+	int row = robotRows[robotID];
+	int col = robotCols[robotID];
+
+	// robot's target row and column
+	int targetRow = targetRows[robotID];
+	int targetCol = targetCols[robotID];
+
+	// distance in rows and columns from the target
+	int rowsAway = abs(row-targetRow);
+	int colsAway = abs(col-targetCol);
+	int distanceAway = rowsAway+colsAway;
+
+	// determine if it's possible to move in each of the four directions
+	bool canMoveLeft = cellOpen(row, col-1);
+	bool canMoveRight = cellOpen(row, col+1);
+	bool canMoveUp = cellOpen(row-1, col);
+	bool canMoveDown = cellOpen(row+1, col);
+
+	// determine the robot's distance from the target after moving in each direction
+	int leftDistance = abs(targetRow-row) + abs(targetCol-(col-1));
+	int rightDistance = abs(targetRow-row) + abs(targetCol-(col+1));
+	int upDistance = abs(targetRow-(row-1)) + abs(targetCol-col);
+	int downDistance = abs(targetRow-(row+1)) + abs(targetCol-col);
+
+	// array to store distances from the target after moving in each direction (indexes represent different directions)
+	int distanceAfterMoving[4];
+
+	// if the robot is further away from the target vertically than horizontally, it will move vertically if possible.
+	// Initialize distanceAfterMoving so that the switch statement below will check the vertical directions first.
+	if(rowsAway>colsAway){
+		distanceAfterMoving[0] = upDistance;
+		distanceAfterMoving[1] = downDistance;
+		distanceAfterMoving[2] = leftDistance;
+		distanceAfterMoving[3] = rightDistance;
+	}
+	// otherwise, it will move horizontally if possible.
+	// Initialize distanceAfterMoving so that the switch statement below will check the horizontal directions first.
+	else {
+		distanceAfterMoving[0] = leftDistance;
+		distanceAfterMoving[1] = rightDistance;
+		distanceAfterMoving[2] = upDistance;
+		distanceAfterMoving[3] = downDistance;
+	}
+
+	// Attempt to move in a direction that would get the robot closer to its target
+	for(int i=0; i<4; i++){
+		// if the robot is further away from the target vertically than horizontally, it will move vertically if possible
+		if(rowsAway>colsAway){
+			if(distanceAfterMoving[i]<distanceAway){
+				switch(i){
+					case 0:
+						if(canMoveUp){
+							robotRows[robotID]--;	
+							return UP;
+						}
+						break;
+					case 1:
+						if(canMoveDown){
+							robotRows[robotID]++;	
+							return DOWN;
+						}
+						break;
+					case 2:
+						if(canMoveLeft){
+							robotCols[robotID]--;	
+							return LEFT;
+						}
+						break;
+					default:
+						if(canMoveRight){
+							robotCols[robotID]++;	
+							return RIGHT;
+						}
+						break;
+				}
+			}
+		}
+		// otherwise, it will move horizontally if possible
+		else {
+			if(distanceAfterMoving[i]<distanceAway){
+				switch(i){
+					case 0:
+						if(canMoveLeft){
+							robotCols[robotID]--;	
+							return LEFT;
+						}
+						break;
+					case 1:
+						if(canMoveRight){
+							robotCols[robotID]++;	
+							return RIGHT;
+						}
+						break;
+					case 2:
+						if(canMoveUp){
+							robotRows[robotID]--;	
+							return UP;
+						}
+						break;
+					default:
+						if(canMoveDown){
+							robotRows[robotID]++;	
+							return DOWN;
+						}
+						break;
+				}
+			}
+		}
+	}
+
+	// If we cannot get closer to the target, move randomly in one of the other horizontal directions if we are in the
+	// same row as the target, or in one of the other vertical directions otherwise.  Also have the robot target a new cell
+	// afterwards.
+
+	srand(time(0));
+
+	if(row==targetRows[robotID]){
+		targetRows[robotID] = -1;
+		targetCols[robotID] = -1;
+		switch(rand() % 2){
+			case 0:
+				if(canMoveUp){
+					robotRows[robotID]--;	
+					return UP;
+				}
+				else {
+					robotRows[robotID]++;	
+					return DOWN;
+				}
+			default:
+				if(canMoveDown){
+					robotRows[robotID]++;	
+					return DOWN;
+				}
+				else {
+					robotRows[robotID]--;	
+					return UP;
+				}
+
+		}
+	}
+	else {
+		targetRows[robotID] = -1;
+		targetCols[robotID] = -1;
+		switch(rand() % 2){
+			case 0:
+				if(canMoveLeft){
+					robotCols[robotID]--;	
+					return LEFT;
+				}
+				else {
+					robotCols[robotID]++;	
+					return RIGHT;
+				}
+			default:
+				if(canMoveRight){
+					robotCols[robotID]++;	
+					return RIGHT;
+				}
+				else {
+					robotCols[robotID]--;	
+					return LEFT;
+				}
+
+		}
+	}
+
+}
+
+bool cellOpen(int row, int col){
+	if(((row<0) || (row>=ROWS)) || ((col<0) || (col>=COLS))){
+		return false;
+	}
+
+	for(int i=0; i<NUM; i++){
+		if((robotRows[i]==row) && (robotCols[i]==col)){
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/* Returns the ID of the robot targeting a debris field at the given coordinates (other than the one with the given ID). */
+int otherRobotTargetingDebris(int robotID, int debrisRow, int debrisCol){
+	for(int i=0; i<NUM; i++){
+		if(i!=robotID && ((targetRows[i] == debrisRow) && (targetCols[i] == debrisCol))){
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 
 void onRobotMalfunction(int id, Loc loc, Area &area, ostream &log) {
 
